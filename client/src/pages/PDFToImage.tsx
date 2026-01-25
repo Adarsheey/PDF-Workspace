@@ -148,7 +148,7 @@ export default function PDFToImage() {
                     ) : (
                       <>
                         <Download className="w-4 h-4 mr-2" />
-                        Export as {format.toUpperCase()}
+                        Export as {format === 'jpeg' ? 'JPG' : 'PNG'}
                       </>
                     )}
                   </Button>

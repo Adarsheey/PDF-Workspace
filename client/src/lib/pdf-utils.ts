@@ -1,10 +1,9 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 
-// Configure pdfjs worker using a safer URL or local import if possible.
-// For browser usage with pdfjs-dist, we can use the legacy build or a CDN.
-// @ts-ignore
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Configure pdfjs worker
+// Using a version-independent URL to avoid mismatch errors
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
 
 export async function pdfPageToImage(
   file: File, 
@@ -13,7 +12,11 @@ export async function pdfPageToImage(
   scale: number = 2
 ): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-  const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+  // Ensure we use the same version for the main library if possible or handle worker mismatch
+  const loadingTask = pdfjs.getDocument({ 
+    data: arrayBuffer,
+    disableFontFace: true // Can help with some rendering errors
+  });
   const pdf = await loadingTask.promise;
   const page = await pdf.getPage(pageNumber);
   
@@ -25,15 +28,19 @@ export async function pdfPageToImage(
   
   canvas.height = viewport.height;
   canvas.width = viewport.width;
+
+  // For JPEG, we might want a white background instead of transparent
+  if (format === 'jpeg') {
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
   
   await page.render({
     canvasContext: context,
-    viewport: viewport,
-    // @ts-ignore
-    canvas: canvas
+    viewport: viewport
   }).promise;
   
-  return canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.95 : undefined);
+  return canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.9 : undefined);
 }
 
 export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night' | 'no-shadow' | 'lighten'): Promise<Uint8Array> {
