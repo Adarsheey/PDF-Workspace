@@ -2,8 +2,8 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure pdfjs worker
-// Using a version that is compatible with the installed package and has stable CDN hosting
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
+// Using the exact version from the package to ensure API and Worker match
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 export async function pdfPageToImage(
   file: File, 
@@ -17,7 +17,7 @@ export async function pdfPageToImage(
   const loadingTask = pdfjs.getDocument({ 
     data: arrayBuffer,
     disableFontFace: true,
-    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
     cMapPacked: true,
   });
   
