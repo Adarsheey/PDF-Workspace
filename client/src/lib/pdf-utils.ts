@@ -1,4 +1,40 @@
 import { PDFDocument, rgb } from 'pdf-lib';
+import * as pdfjs from 'pdfjs-dist';
+
+// Configure pdfjs worker using a safer URL or local import if possible.
+// For browser usage with pdfjs-dist, we can use the legacy build or a CDN.
+// @ts-ignore
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+
+export async function pdfPageToImage(
+  file: File, 
+  pageNumber: number, 
+  format: 'png' | 'jpeg' = 'png',
+  scale: number = 2
+): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+  const pdf = await loadingTask.promise;
+  const page = await pdf.getPage(pageNumber);
+  
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  
+  if (!context) throw new Error('Could not create canvas context');
+  
+  canvas.height = viewport.height;
+  canvas.width = viewport.width;
+  
+  await page.render({
+    canvasContext: context,
+    viewport: viewport,
+    // @ts-ignore
+    canvas: canvas
+  }).promise;
+  
+  return canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.95 : undefined);
+}
 
 export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night' | 'no-shadow' | 'lighten'): Promise<Uint8Array> {
   const arrayBuffer = await file.arrayBuffer();

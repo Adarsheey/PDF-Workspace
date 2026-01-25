@@ -9,6 +9,7 @@ import Merge from "@/pages/Merge";
 import Split from "@/pages/Split";
 import Compress from "@/pages/Compress";
 import Filters from "@/pages/Filters";
+import PDFToImage from "@/pages/PDFToImage";
 import Feedback from "@/pages/Feedback";
 import NotFound from "@/pages/not-found";
 
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/split" component={Split} />
       <Route path="/compress" component={Compress} />
       <Route path="/filters" component={Filters} />
+      <Route path="/pdf-to-image" component={PDFToImage} />
       <Route path="/feedback" component={Feedback} />
       <Route component={NotFound} />
     </Switch>

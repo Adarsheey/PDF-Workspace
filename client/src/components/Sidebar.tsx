@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { FileStack, Scissors, Minimize2, Palette, MessageSquarePlus, Github } from "lucide-react";
+import { FileStack, Scissors, Minimize2, Palette, Image as ImageIcon, MessageSquarePlus, Github } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { label: "Split PDF", icon: Scissors, href: "/split" },
   { label: "Compress PDF", icon: Minimize2, href: "/compress" },
   { label: "Visual Filters", icon: Palette, href: "/filters" },
+  { label: "PDF to Image", icon: ImageIcon, href: "/pdf-to-image" },
 ];
 
 export function Sidebar() {
