@@ -21,7 +21,7 @@ export default function VisualFilters() {
     }
   };
 
-  const handleApplyFilter = async (filter: 'grayscale' | 'night') => {
+  const handleApplyFilter = async (filter: 'grayscale' | 'night' | 'no-shadow' | 'lighten') => {
     if (!file) return;
 
     try {
@@ -31,7 +31,7 @@ export default function VisualFilters() {
       
       toast({
         title: "Filter Applied",
-        description: `Successfully applied ${filter} mode to your PDF.`,
+        description: `Successfully applied ${filter.replace('-', ' ')} mode to your PDF.`,
       });
     } catch (error) {
       console.error(error);
@@ -48,15 +48,15 @@ export default function VisualFilters() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="space-y-2">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-white">Visual Filters</h1>
-        <p className="text-muted-foreground text-lg">Modify your PDF's appearance for accessibility or ink saving.</p>
+        <h1 className="text-3xl md:text-4xl font-display font-bold text-white">Document Filters</h1>
+        <p className="text-muted-foreground text-lg">Modify your PDF's appearance for accessibility, ink saving, or scan enhancement.</p>
       </div>
 
       {!file ? (
         <UploadZone 
           onFilesSelected={handleFileSelected} 
           maxFiles={1}
-          description="Upload a PDF to apply visual filters"
+          description="Upload a PDF to apply document filters"
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -82,26 +82,51 @@ export default function VisualFilters() {
             </CardHeader>
             <CardContent className="space-y-4">
               {!resultBytes ? (
-                <>
-                  <Button 
-                    onClick={() => handleApplyFilter('grayscale')}
-                    disabled={isProcessing}
-                    className="w-full justify-start h-12"
-                    variant="outline"
-                  >
-                    <Sun className="w-5 h-5 mr-3 text-gray-400" />
-                    Grayscale Mode (Ink Saver)
-                  </Button>
-                  <Button 
-                    onClick={() => handleApplyFilter('night')}
-                    disabled={isProcessing}
-                    className="w-full justify-start h-12"
-                    variant="outline"
-                  >
-                    <Moon className="w-5 h-5 mr-3 text-purple-400" />
-                    Night Mode (High Contrast)
-                  </Button>
-                </>
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Visual Modes</p>
+                    <Button 
+                      onClick={() => handleApplyFilter('grayscale')}
+                      disabled={isProcessing}
+                      className="w-full justify-start h-12"
+                      variant="outline"
+                    >
+                      <Sun className="w-5 h-5 mr-3 text-gray-400" />
+                      Grayscale Mode (Ink Saver)
+                    </Button>
+                    <Button 
+                      onClick={() => handleApplyFilter('night')}
+                      disabled={isProcessing}
+                      className="w-full justify-start h-12"
+                      variant="outline"
+                    >
+                      <Moon className="w-5 h-5 mr-3 text-purple-400" />
+                      Night Mode (High Contrast)
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Scan Enhancement</p>
+                    <Button 
+                      onClick={() => handleApplyFilter('no-shadow')}
+                      disabled={isProcessing}
+                      className="w-full justify-start h-12"
+                      variant="outline"
+                    >
+                      <Eye className="w-5 h-5 mr-3 text-blue-400" />
+                      No Shadow (Clean Scan)
+                    </Button>
+                    <Button 
+                      onClick={() => handleApplyFilter('lighten')}
+                      disabled={isProcessing}
+                      className="w-full justify-start h-12"
+                      variant="outline"
+                    >
+                      <Sun className="w-5 h-5 mr-3 text-yellow-400" />
+                      Lighten (Boost Exposure)
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <div className="text-center py-4 space-y-4">
                   <div className="flex justify-center">

@@ -1,6 +1,6 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 
-export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night'): Promise<Uint8Array> {
+export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night' | 'no-shadow' | 'lighten'): Promise<Uint8Array> {
   const arrayBuffer = await file.arrayBuffer();
   const pdfDoc = await PDFDocument.load(arrayBuffer);
   const pages = pdfDoc.getPages();
@@ -9,10 +9,6 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
     const { width, height } = page.getSize();
     
     if (filter === 'night') {
-      // For night mode, we draw a rectangle with the 'Difference' blend mode
-      // to invert the colors. Note: pdf-lib's blend mode support is via the 
-      // graphics state, but drawRectangle accepts it in some versions/implementations.
-      // If it fails, we use a semi-transparent overlay.
       try {
         page.drawRectangle({
           x: 0,
@@ -24,7 +20,6 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
           blendMode: 'Difference' as any,
         });
       } catch (e) {
-        // Fallback: dark backdrop with 0.7 opacity
         page.drawRectangle({
           x: 0,
           y: 0,
@@ -35,8 +30,6 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
         });
       }
     } else if (filter === 'grayscale') {
-      // For grayscale, we'll try a simpler approach since 'Saturation' blend
-      // mode might be causing the error in some browsers/pdf-lib versions.
       try {
         page.drawRectangle({
           x: 0,
@@ -48,7 +41,6 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
           blendMode: 'Luminosity' as any,
         });
       } catch (e) {
-        // Fallback: very light gray overlay
         page.drawRectangle({
           x: 0,
           y: 0,
@@ -56,6 +48,61 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
           height,
           color: rgb(0.5, 0.5, 0.5),
           opacity: 0.05,
+        });
+      }
+    } else if (filter === 'no-shadow') {
+      // Bleach out shadows by increasing white point/contrast
+      // We use a high-opacity white overlay with Screen blend mode to wash out grays
+      try {
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(1, 1, 1),
+          opacity: 0.2,
+          blendMode: 'Screen' as any,
+        });
+        // Further contrast boost via soft light
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(1, 1, 1),
+          opacity: 0.1,
+          blendMode: 'SoftLight' as any,
+        });
+      } catch (e) {
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(1, 1, 1),
+          opacity: 0.15,
+        });
+      }
+    } else if (filter === 'lighten') {
+      // Increase exposure without washing out text
+      try {
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(1, 1, 1),
+          opacity: 0.3,
+          blendMode: 'Overlay' as any,
+        });
+      } catch (e) {
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(1, 1, 1),
+          opacity: 0.1,
         });
       }
     }
