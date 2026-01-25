@@ -8,103 +8,55 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
   for (const page of pages) {
     const { width, height } = page.getSize();
     
+    // In pdf-lib, drawing a rectangle with opacity < 1 or specific blend modes
+    // can be subtle. We increase opacity and stack effects for visibility.
+    
     if (filter === 'night') {
-      try {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(1, 1, 1),
-          opacity: 1,
-          blendMode: 'Difference' as any,
-        });
-      } catch (e) {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(0, 0, 0),
-          opacity: 0.7,
-        });
-      }
+      // High-impact Night Mode: Pure white rectangle with Difference blend mode
+      // This effectively inverts every pixel on the page
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: rgb(1, 1, 1),
+        opacity: 1,
+        blendMode: 'Difference' as any,
+      });
     } else if (filter === 'grayscale') {
-      try {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(0.5, 0.5, 0.5),
-          opacity: 0.1,
-          blendMode: 'Luminosity' as any,
-        });
-      } catch (e) {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(0.5, 0.5, 0.5),
-          opacity: 0.05,
-        });
-      }
+      // High-impact Grayscale: Luminosity blend mode with higher opacity
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: rgb(0.5, 0.5, 0.5),
+        opacity: 0.4,
+        blendMode: 'Luminosity' as any,
+      });
     } else if (filter === 'no-shadow') {
-      // Bleach out shadows by increasing white point/contrast
-      // We use a high-opacity white overlay with Screen blend mode to wash out grays
-      try {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(1, 1, 1),
-          opacity: 0.2,
-          blendMode: 'Screen' as any,
-        });
-        // Further contrast boost via soft light
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(1, 1, 1),
-          opacity: 0.1,
-          blendMode: 'SoftLight' as any,
-        });
-      } catch (e) {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(1, 1, 1),
-          opacity: 0.15,
-        });
-      }
+      // High-impact No Shadow: Screen blend mode at higher opacity
+      // This aggressively brightens dark/grey areas (shadows)
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: rgb(1, 1, 1),
+        opacity: 0.5,
+        blendMode: 'Screen' as any,
+      });
     } else if (filter === 'lighten') {
-      // Increase exposure without washing out text
-      try {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(1, 1, 1),
-          opacity: 0.3,
-          blendMode: 'Overlay' as any,
-        });
-      } catch (e) {
-        page.drawRectangle({
-          x: 0,
-          y: 0,
-          width,
-          height,
-          color: rgb(1, 1, 1),
-          opacity: 0.1,
-        });
-      }
+      // High-impact Lighten: Overlay blend mode at higher opacity
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: rgb(1, 1, 1),
+        opacity: 0.5,
+        blendMode: 'Overlay' as any,
+      });
     }
   }
 
