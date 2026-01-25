@@ -9,40 +9,55 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
     const { width, height } = page.getSize();
     
     if (filter === 'night') {
-      // Create a dark overlay for night mode
-      page.drawRectangle({
-        x: 0,
-        y: 0,
-        width,
-        height,
-        color: rgb(0.1, 0.1, 0.1),
-        opacity: 1,
-        blendMode: 'Difference' as any, // Not directly supported by simple draw, but we can simulate or use overlay
-      });
-      // Better way for night mode in pdf-lib is using a full-page overlay with Exclusion blend mode
-      // Since pdf-lib blend mode support is limited in simple drawing, we use a rectangle with low opacity
-      // or a dark backdrop if we were regenerating. 
-      // For a "true" filter, we'd need to manipulate stream operators which is complex.
-      // We'll use a semi-transparent dark overlay as a "dimmer" / night mode approximation
-      page.drawRectangle({
-        x: 0,
-        y: 0,
-        width,
-        height,
-        color: rgb(0, 0, 0),
-        opacity: 0.8,
-      });
+      // For night mode, we draw a rectangle with the 'Difference' blend mode
+      // to invert the colors. Note: pdf-lib's blend mode support is via the 
+      // graphics state, but drawRectangle accepts it in some versions/implementations.
+      // If it fails, we use a semi-transparent overlay.
+      try {
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(1, 1, 1),
+          opacity: 1,
+          blendMode: 'Difference' as any,
+        });
+      } catch (e) {
+        // Fallback: dark backdrop with 0.7 opacity
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(0, 0, 0),
+          opacity: 0.7,
+        });
+      }
     } else if (filter === 'grayscale') {
-      // Grayscale approximation via overlay
-      page.drawRectangle({
-        x: 0,
-        y: 0,
-        width,
-        height,
-        color: rgb(0.5, 0.5, 0.5),
-        opacity: 0.2,
-        blendMode: 'Saturation' as any,
-      });
+      // For grayscale, we'll try a simpler approach since 'Saturation' blend
+      // mode might be causing the error in some browsers/pdf-lib versions.
+      try {
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(0.5, 0.5, 0.5),
+          opacity: 0.1,
+          blendMode: 'Luminosity' as any,
+        });
+      } catch (e) {
+        // Fallback: very light gray overlay
+        page.drawRectangle({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          color: rgb(0.5, 0.5, 0.5),
+          opacity: 0.05,
+        });
+      }
     }
   }
 
