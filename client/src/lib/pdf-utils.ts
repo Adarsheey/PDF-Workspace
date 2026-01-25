@@ -3,6 +3,8 @@ import * as pdfjs from 'pdfjs-dist';
 
 // Configure pdfjs worker
 // Using the exact version from the package to ensure API and Worker match
+// and providing a fallback to help with rendering stability
+// @ts-ignore
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 export async function pdfPageToImage(
@@ -13,39 +15,50 @@ export async function pdfPageToImage(
 ): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   
-  // Use a fallback-friendly loading method
-  const loadingTask = pdfjs.getDocument({ 
-    data: arrayBuffer,
-    disableFontFace: true,
-    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
-    cMapPacked: true,
-  });
-  
-  const pdf = await loadingTask.promise;
-  const page = await pdf.getPage(pageNumber);
-  
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  
-  if (!context) throw new Error('Could not create canvas context');
-  
-  canvas.height = viewport.height;
-  canvas.width = viewport.width;
+  try {
+    const loadingTask = pdfjs.getDocument({ 
+      data: arrayBuffer,
+      disableFontFace: true,
+      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`
+    });
+    
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(pageNumber);
+    
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    if (!context) throw new Error('Could not create canvas context');
+    
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
 
-  if (format === 'jpeg') {
-    context.fillStyle = 'white';
-    context.fillRect(0, 0, canvas.width, canvas.height);
+    if (format === 'jpeg') {
+      context.fillStyle = 'white';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    await page.render({
+      canvasContext: context,
+      viewport: viewport,
+      // @ts-ignore
+      canvas: canvas
+    }).promise;
+    
+    const dataUrl = canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.9 : undefined);
+    
+    // Cleanup to prevent memory leaks
+    canvas.width = 0;
+    canvas.height = 0;
+    
+    return dataUrl;
+  } catch (error) {
+    console.error('PDF Rendering Error:', error);
+    throw error;
   }
-  
-  await page.render({
-    canvasContext: context,
-    viewport: viewport,
-    // @ts-ignore
-    canvas: canvas
-  }).promise;
-  
-  return canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.9 : undefined);
 }
 
 export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night' | 'no-shadow' | 'lighten'): Promise<Uint8Array> {
