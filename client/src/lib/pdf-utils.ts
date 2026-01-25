@@ -2,10 +2,11 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure pdfjs worker
-// Using the exact version from the package to ensure API and Worker match
-// and providing a fallback to help with rendering stability
+// Using a version that is widely supported and has stable CDN assets
+// We use a specific version for both API and Worker to ensure compatibility
+const PDFJS_VERSION = '3.11.174';
 // @ts-ignore
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
 
 export async function pdfPageToImage(
   file: File, 
@@ -16,12 +17,13 @@ export async function pdfPageToImage(
   const arrayBuffer = await file.arrayBuffer();
   
   try {
+    // We use a specific version for loading to avoid mismatch errors
     const loadingTask = pdfjs.getDocument({ 
       data: arrayBuffer,
       disableFontFace: true,
-      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
+      cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/cmaps/`,
       cMapPacked: true,
-      standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`
+      standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/standard_fonts/`
     });
     
     const pdf = await loadingTask.promise;
@@ -50,7 +52,7 @@ export async function pdfPageToImage(
     
     const dataUrl = canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.9 : undefined);
     
-    // Cleanup to prevent memory leaks
+    // Cleanup
     canvas.width = 0;
     canvas.height = 0;
     
