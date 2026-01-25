@@ -54,16 +54,23 @@ export async function splitPDF(file: File, range: string): Promise<Uint8Array> {
 }
 
 export async function compressPDF(file: File): Promise<Uint8Array> {
-  // Note: pdf-lib doesn't support advanced compression like ghostscript.
-  // We simulate a basic optimization by reloading and saving without objects.
-  // For true image downscaling, we would need to extract images, resize with canvas, and replace.
-  // This is a simplified "optimize" pass that cleans up the structure.
-  
   const arrayBuffer = await file.arrayBuffer();
   const pdfDoc = await PDFDocument.load(arrayBuffer);
   
-  // Basic optimization: this often reduces size for PDFs with incremental updates
-  return pdfDoc.save({ useObjectStreams: false });
+  // Basic optimization: using object streams and stripping metadata
+  // can help reduce file size in many cases.
+  pdfDoc.setTitle("");
+  pdfDoc.setAuthor("");
+  pdfDoc.setSubject("");
+  pdfDoc.setKeywords([]);
+  pdfDoc.setProducer("");
+  pdfDoc.setCreator("");
+
+  return pdfDoc.save({ 
+    useObjectStreams: true,
+    addDefaultPage: false,
+    updateFieldAppearances: false
+  });
 }
 
 export async function getPageCount(file: File): Promise<number> {
