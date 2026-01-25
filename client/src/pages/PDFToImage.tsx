@@ -48,7 +48,7 @@ export default function PDFToImage() {
       console.error(error);
       toast({
         title: "Export failed",
-        description: "An error occurred during rendering.",
+        description: "Rendering error. Please ensure the PDF is not password protected and try again.",
         variant: "destructive"
       });
     } finally {
@@ -57,12 +57,22 @@ export default function PDFToImage() {
   };
 
   const handleGeneratePreview = async (pageNumber: number) => {
-    if (!file || previews[pageNumber]) return;
+    if (!file || previews[pageNumber] || isProcessing === pageNumber) return;
     try {
-      const dataUrl = await pdfPageToImage(file, pageNumber, 'png', 0.5);
+      setIsProcessing(pageNumber);
+      // Ensure we clear previous tasks and give UI time to show loading
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const dataUrl = await pdfPageToImage(file, pageNumber, 'png', 0.6);
       setPreviews(prev => ({ ...prev, [pageNumber]: dataUrl }));
     } catch (e) {
-      console.error(e);
+      console.error('Preview Generation Error:', e);
+      toast({
+        title: "Preview failed",
+        description: "Could not load preview. Click again to retry.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(null);
     }
   };
 
@@ -127,8 +137,12 @@ export default function PDFToImage() {
                     <img src={previews[page]} alt={`Page ${page}`} className="w-full h-full object-contain" />
                   ) : (
                     <div className="flex flex-col items-center text-muted-foreground group-hover:text-primary transition-colors">
-                      <ImageIcon className="w-12 h-12 mb-2" />
-                      <span className="text-sm">Click for preview</span>
+                      {isProcessing === page ? (
+                        <Loader2 className="w-12 h-12 mb-2 animate-spin" />
+                      ) : (
+                        <ImageIcon className="w-12 h-12 mb-2" />
+                      )}
+                      <span className="text-sm">{isProcessing === page ? "Loading..." : "Click for preview"}</span>
                     </div>
                   )}
                   <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-white z-10">
@@ -143,7 +157,7 @@ export default function PDFToImage() {
                     variant="secondary"
                     size="sm"
                   >
-                    {isProcessing === page ? (
+                    {isProcessing === page && !previews[page] ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <>

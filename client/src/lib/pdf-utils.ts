@@ -2,11 +2,10 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure pdfjs worker
-// Using a version that is widely supported and has stable CDN assets
-// We use a specific version for both API and Worker to ensure compatibility
-const PDFJS_VERSION = '3.11.174';
+// Use the EXACT version matching our package.json (5.4.530)
+// For version 5+, we must use the .mjs worker for ESM compatibility
 // @ts-ignore
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs`;
 
 export async function pdfPageToImage(
   file: File, 
@@ -17,13 +16,12 @@ export async function pdfPageToImage(
   const arrayBuffer = await file.arrayBuffer();
   
   try {
-    // We use a specific version for loading to avoid mismatch errors
     const loadingTask = pdfjs.getDocument({ 
       data: arrayBuffer,
       disableFontFace: true,
-      cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/cmaps/`,
+      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/cmaps/`,
       cMapPacked: true,
-      standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/standard_fonts/`
+      standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/standard_fonts/`
     });
     
     const pdf = await loadingTask.promise;
@@ -31,7 +29,7 @@ export async function pdfPageToImage(
     
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     
     if (!context) throw new Error('Could not create canvas context');
     
@@ -56,8 +54,12 @@ export async function pdfPageToImage(
     canvas.width = 0;
     canvas.height = 0;
     
+    // Explicitly destroy objects to free memory
+    await pdf.destroy();
+    await loadingTask.destroy();
+    
     return dataUrl;
-  } catch (error) {
+  } catch (error: any) {
     console.error('PDF Rendering Error:', error);
     throw error;
   }
@@ -71,12 +73,7 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
   for (const page of pages) {
     const { width, height } = page.getSize();
     
-    // In pdf-lib, drawing a rectangle with opacity < 1 or specific blend modes
-    // can be subtle. We increase opacity and stack effects for visibility.
-    
     if (filter === 'night') {
-      // High-impact Night Mode: Pure white rectangle with Difference blend mode
-      // This effectively inverts every pixel on the page
       page.drawRectangle({
         x: 0,
         y: 0,
@@ -87,7 +84,6 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
         blendMode: 'Difference' as any,
       });
     } else if (filter === 'grayscale') {
-      // High-impact Grayscale: Luminosity blend mode with higher opacity
       page.drawRectangle({
         x: 0,
         y: 0,
@@ -98,8 +94,6 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
         blendMode: 'Luminosity' as any,
       });
     } else if (filter === 'no-shadow') {
-      // High-impact No Shadow: Screen blend mode at higher opacity
-      // This aggressively brightens dark/grey areas (shadows)
       page.drawRectangle({
         x: 0,
         y: 0,
@@ -110,7 +104,6 @@ export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night
         blendMode: 'Screen' as any,
       });
     } else if (filter === 'lighten') {
-      // High-impact Lighten: Overlay blend mode at higher opacity
       page.drawRectangle({
         x: 0,
         y: 0,
@@ -144,7 +137,6 @@ export async function splitPDF(file: File, range: string): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(arrayBuffer);
   const totalPages = pdfDoc.getPageCount();
   
-  // Parse range "1-3, 5, 8-10"
   const pagesToKeep = new Set<number>();
   const parts = range.split(',');
   
@@ -153,16 +145,14 @@ export async function splitPDF(file: File, range: string): Promise<Uint8Array> {
     
     if (!isNaN(start)) {
       if (!isNaN(end)) {
-        // Range: 1-5
         for (let i = start; i <= end; i++) {
           if (i >= 1 && i <= totalPages) {
-            pagesToKeep.add(i - 1); // 0-indexed
+            pagesToKeep.add(i - 1);
           }
         }
       } else {
-        // Single page: 5
         if (start >= 1 && start <= totalPages) {
-          pagesToKeep.add(start - 1); // 0-indexed
+          pagesToKeep.add(start - 1);
         }
       }
     }
@@ -183,8 +173,6 @@ export async function compressPDF(file: File): Promise<Uint8Array> {
   const arrayBuffer = await file.arrayBuffer();
   const pdfDoc = await PDFDocument.load(arrayBuffer);
   
-  // Basic optimization: using object streams and stripping metadata
-  // can help reduce file size in many cases.
   pdfDoc.setTitle("");
   pdfDoc.setAuthor("");
   pdfDoc.setSubject("");
