@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { FileStack, Scissors, Minimize2, MessageSquarePlus, Github } from "lucide-react";
+import { FileStack, Scissors, Minimize2, Palette, MessageSquarePlus, Github } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "Merge PDF", icon: FileStack, href: "/" },
   { label: "Split PDF", icon: Scissors, href: "/split" },
   { label: "Compress PDF", icon: Minimize2, href: "/compress" },
+  { label: "Visual Filters", icon: Palette, href: "/filters" },
 ];
 
 export function Sidebar() {

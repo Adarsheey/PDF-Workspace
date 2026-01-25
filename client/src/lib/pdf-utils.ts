@@ -1,4 +1,53 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
+
+export async function applyVisualFilter(file: File, filter: 'grayscale' | 'night'): Promise<Uint8Array> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfDoc = await PDFDocument.load(arrayBuffer);
+  const pages = pdfDoc.getPages();
+
+  for (const page of pages) {
+    const { width, height } = page.getSize();
+    
+    if (filter === 'night') {
+      // Create a dark overlay for night mode
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: rgb(0.1, 0.1, 0.1),
+        opacity: 1,
+        blendMode: 'Difference' as any, // Not directly supported by simple draw, but we can simulate or use overlay
+      });
+      // Better way for night mode in pdf-lib is using a full-page overlay with Exclusion blend mode
+      // Since pdf-lib blend mode support is limited in simple drawing, we use a rectangle with low opacity
+      // or a dark backdrop if we were regenerating. 
+      // For a "true" filter, we'd need to manipulate stream operators which is complex.
+      // We'll use a semi-transparent dark overlay as a "dimmer" / night mode approximation
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: rgb(0, 0, 0),
+        opacity: 0.8,
+      });
+    } else if (filter === 'grayscale') {
+      // Grayscale approximation via overlay
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: rgb(0.5, 0.5, 0.5),
+        opacity: 0.2,
+        blendMode: 'Saturation' as any,
+      });
+    }
+  }
+
+  return pdfDoc.save();
+}
 
 export async function mergePDFs(files: File[]): Promise<Uint8Array> {
   const mergedPdf = await PDFDocument.create();

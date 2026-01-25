@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/Sidebar";
 import Merge from "@/pages/Merge";
 import Split from "@/pages/Split";
 import Compress from "@/pages/Compress";
+import Filters from "@/pages/Filters";
 import Feedback from "@/pages/Feedback";
 import NotFound from "@/pages/not-found";
 
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={Merge} />
       <Route path="/split" component={Split} />
       <Route path="/compress" component={Compress} />
+      <Route path="/filters" component={Filters} />
       <Route path="/feedback" component={Feedback} />
       <Route component={NotFound} />
     </Switch>
