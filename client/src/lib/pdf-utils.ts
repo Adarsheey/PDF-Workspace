@@ -169,70 +169,21 @@ export async function splitPDF(file: File, range: string): Promise<Uint8Array> {
   return newPdf.save();
 }
 
-/**
- * Balanced Compression:
- * We use high resolution (2.0x scale) but optimized JPEG quality (0.75).
- * This maintains crisp text and images while hitting the 25-40% reduction target.
- */
 export async function compressPDF(file: File): Promise<Uint8Array> {
   const arrayBuffer = await file.arrayBuffer();
-  const loadingTask = pdfjs.getDocument({ 
-    data: arrayBuffer,
-    disableFontFace: true,
-    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/cmaps/`,
-    cMapPacked: true,
-  });
+  const pdfDoc = await PDFDocument.load(arrayBuffer);
   
-  const pdf = await loadingTask.promise;
-  const numPages = pdf.numPages;
-  const compressedPdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle("");
+  pdfDoc.setAuthor("");
+  pdfDoc.setSubject("");
+  pdfDoc.setKeywords([]);
+  pdfDoc.setProducer("");
+  pdfDoc.setCreator("");
 
-  for (let i = 1; i <= numPages; i++) {
-    const page = await pdf.getPage(i);
-    // 2.0x scale for crisp, professional quality
-    const scale = 2.0; 
-    const viewport = page.getViewport({ scale });
-    
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) continue;
-
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    context.fillStyle = 'white';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
-    await page.render({
-      canvasContext: context,
-      viewport: viewport,
-    }).promise;
-
-    // High quality JPEG (0.75) for 25-40% reduction with excellent readability
-    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.75);
-    const jpegBytes = await fetch(jpegDataUrl).then(res => res.arrayBuffer());
-    
-    const image = await compressedPdfDoc.embedJpg(jpegBytes);
-    // Maintain original dimensions in points
-    const originalViewport = page.getViewport({ scale: 1.0 });
-    const pdfPage = compressedPdfDoc.addPage([originalViewport.width, originalViewport.height]);
-    
-    pdfPage.drawImage(image, {
-      x: 0,
-      y: 0,
-      width: originalViewport.width,
-      height: originalViewport.height,
-    });
-    
-    canvas.width = 0;
-    canvas.height = 0;
-  }
-
-  await pdf.destroy();
-  await loadingTask.destroy();
-
-  return compressedPdfDoc.save({ 
+  return pdfDoc.save({ 
     useObjectStreams: true,
+    addDefaultPage: false,
+    updateFieldAppearances: false
   });
 }
 
