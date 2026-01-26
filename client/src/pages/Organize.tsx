@@ -124,7 +124,7 @@ function SortablePage({
 
 export default function Organize() {
   const [pages, setPages] = useState<PDFPage[]>([]);
-  const [sourceFiles, setSourceFiles] = useState<Record<string, Uint8Array>>({});
+  const [sourceFiles, setSourceFiles] = useState<Record<string, ArrayBuffer>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -145,14 +145,15 @@ export default function Organize() {
     setIsProcessing(true);
     try {
       const newPages: PDFPage[] = [];
-      const newSourceFiles: Record<string, Uint8Array> = { ...sourceFiles };
+      const newSourceFiles: Record<string, ArrayBuffer> = { ...sourceFiles };
       
       for (const file of files) {
         const fileId = `${file.name}-${Date.now()}-${Math.random()}`;
         const arrayBuffer = await file.arrayBuffer();
-        newSourceFiles[fileId] = new Uint8Array(arrayBuffer);
+        newSourceFiles[fileId] = arrayBuffer;
         
-        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        // Use a copy for PDF.js to avoid detaching the main buffer
+        const pdf = await pdfjs.getDocument({ data: arrayBuffer.slice(0) }).promise;
         
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
@@ -230,11 +231,9 @@ export default function Organize() {
       
       for (const page of pages) {
         if (!loadedDocs[page.sourceFileId]) {
-          // IMPORTANT: Create a fresh copy of the Uint8Array bytes
-          // to prevent issues with detached ArrayBuffers
-          const sourceBytes = sourceFiles[page.sourceFileId];
-          const bytesToLoad = new Uint8Array(sourceBytes);
-          loadedDocs[page.sourceFileId] = await PDFDocument.load(bytesToLoad);
+          const sourceBuffer = sourceFiles[page.sourceFileId];
+          // Slice creates a new ArrayBuffer to avoid detached state
+          loadedDocs[page.sourceFileId] = await PDFDocument.load(sourceBuffer.slice(0));
         }
         
         const sourceDoc = loadedDocs[page.sourceFileId];
