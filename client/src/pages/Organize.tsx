@@ -11,7 +11,8 @@ import {
   Save, 
   Loader2, 
   Plus, 
-  RotateCcw 
+  RotateCcw,
+  Shuffle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -74,41 +75,41 @@ function SortablePage({
 
   return (
     <div ref={setNodeRef} style={style} className="relative group aspect-[3/4]">
-      <Card className="h-full w-full overflow-hidden bg-card/50 border-border group-hover:border-primary/50 transition-colors cursor-default">
+      <Card className="h-full w-full overflow-hidden bg-card/50 border-border group-hover:border-primary/50 transition-colors cursor-default shadow-sm">
         <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
-           <div {...attributes} {...listeners} className="p-1 bg-black/60 rounded cursor-grab active:cursor-grabbing hover:bg-black/80">
+           <div {...attributes} {...listeners} className="p-1.5 bg-black/60 backdrop-blur-md rounded cursor-grab active:cursor-grabbing hover:bg-black/80 transition-colors">
              <GripVertical className="w-3 h-3 text-white" />
            </div>
-           <div className="bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-bold text-white uppercase">
+           <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider">
              Page {page.pageIndex + 1}
            </div>
         </div>
         
-        <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
           <Button 
             size="icon" 
             variant="secondary" 
-            className="h-7 w-7 bg-black/60 hover:bg-black/80 border-0" 
+            className="h-8 w-8 bg-black/60 backdrop-blur-md hover:bg-black/80 border-0 shadow-md" 
             onClick={() => onRotate(page.id)}
           >
-            <RotateCw className="w-3 h-3 text-white" />
+            <RotateCw className="w-4 h-4 text-white" />
           </Button>
           <Button 
             size="icon" 
             variant="destructive" 
-            className="h-7 w-7 bg-red-500/60 hover:bg-red-500/80 border-0" 
+            className="h-8 w-8 bg-red-500/60 backdrop-blur-md hover:bg-red-500/80 border-0 shadow-md" 
             onClick={() => onDelete(page.id)}
           >
-            <Trash2 className="w-3 h-3 text-white" />
+            <Trash2 className="w-4 h-4 text-white" />
           </Button>
         </div>
 
-        <div className="w-full h-full flex items-center justify-center p-2 bg-secondary/20">
+        <div className="w-full h-full flex items-center justify-center p-3 bg-secondary/10">
           <img 
             src={page.previewUrl} 
             alt={`Page ${page.pageIndex + 1}`} 
-            className="max-w-full max-h-full object-contain shadow-sm"
-            style={{ transform: `rotate(${page.rotation}deg)`, transition: 'transform 0.2s ease-in-out' }}
+            className="max-w-full max-h-full object-contain shadow-md rounded-sm"
+            style={{ transform: `rotate(${page.rotation}deg)`, transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
           />
         </div>
       </Card>
@@ -197,6 +198,24 @@ export default function Organize() {
     ));
   };
 
+  const handleShuffle = () => {
+    if (pages.length < 2) return;
+    
+    setPages(prev => {
+      const shuffled = [...prev];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    });
+
+    toast({
+      title: "Pages Shuffled",
+      description: "Document order randomized.",
+    });
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -214,8 +233,6 @@ export default function Organize() {
     setIsExporting(true);
     try {
       const mergedPdf = await PDFDocument.create();
-      
-      // Keep track of loaded source documents to avoid redundant loading
       const loadedDocs: Record<string, PDFDocument> = {};
       
       for (const page of pages) {
@@ -263,7 +280,10 @@ export default function Organize() {
         {pages.length > 0 && (
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => { setPages([]); setSourceFiles({}); }}>
-              <RotateCcw className="w-4 h-4 mr-2" /> Clear All
+              <RotateCcw className="w-4 h-4 mr-2" /> Clear
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleShuffle} disabled={isExporting}>
+              <Shuffle className="w-4 h-4 mr-2" /> Shuffle
             </Button>
             <Button onClick={handleSave} disabled={isExporting} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
               {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
@@ -310,10 +330,10 @@ export default function Organize() {
             
             <button 
               onClick={() => document.querySelector('input[type="file"]')?.click()}
-              className="aspect-[3/4] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all bg-card/30"
+              className="aspect-[3/4] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all bg-card/30 group"
             >
-              <Plus className="w-8 h-8" />
-              <span className="text-xs font-bold uppercase tracking-wider">Add More</span>
+              <Plus className="w-10 h-10 group-hover:scale-125 transition-transform" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Add More</span>
             </button>
           </div>
         </DndContext>
