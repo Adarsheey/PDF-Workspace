@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, PDFRawStream, PDFName } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure pdfjs worker
@@ -169,39 +169,73 @@ export async function splitPDF(file: File, range: string): Promise<Uint8Array> {
   return newPdf.save();
 }
 
+/**
+ * Advanced Compression Strategy:
+ * To achieve 30-40%+ reduction, we use a "re-imaging" approach.
+ * We render each page of the PDF to a high-quality JPEG and then reconstruct a new PDF.
+ * This effectively flattens and compresses all elements (images, text, vectors).
+ */
 export async function compressPDF(file: File): Promise<Uint8Array> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+  const loadingTask = pdfjs.getDocument({ 
+    data: arrayBuffer,
+    disableFontFace: true,
+    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/cmaps/`,
+    cMapPacked: true,
+  });
   
-  // Strip metadata
-  pdfDoc.setTitle("");
-  pdfDoc.setAuthor("");
-  pdfDoc.setSubject("");
-  pdfDoc.setKeywords([]);
-  pdfDoc.setProducer("");
-  pdfDoc.setCreator("");
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+  const compressedPdfDoc = await PDFDocument.create();
 
-  // Scan for image objects and try to re-encode them if possible
-  // Note: Pure client-side re-encoding of internal PDF streams is limited
-  // without heavy external decoders, but we can optimize the structure.
-  const enumerateObjects = (pdfDoc as any).context.enumerateIndirectObjects();
-  for (const [ref, obj] of enumerateObjects) {
-    if (obj instanceof PDFRawStream) {
-      const dict = obj.dict;
-      const subtype = dict.get(PDFName.of('Subtype'));
-      if (subtype === PDFName.of('Image')) {
-        // We are now identifying image objects for potential downsampling
-        // Although full downsampling requires a decoder, 
-        // identifying them is the first step requested.
-      }
-    }
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdf.getPage(i);
+    // 1.5x scale is usually enough for readable text while saving huge space
+    // 1.0x is even better for compression but might be slightly blurry
+    const scale = 1.5; 
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) continue;
+
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    // JPEG needs white background
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({
+      canvasContext: context,
+      viewport: viewport,
+    }).promise;
+
+    // Convert to compressed JPEG (0.6 quality gives high reduction)
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    const jpegBytes = await fetch(jpegDataUrl).then(res => res.arrayBuffer());
+    
+    const image = await compressedPdfDoc.embedJpg(jpegBytes);
+    const pdfPage = compressedPdfDoc.addPage([viewport.width, viewport.height]);
+    
+    pdfPage.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: viewport.width,
+      height: viewport.height,
+    });
+    
+    // Cleanup canvas
+    canvas.width = 0;
+    canvas.height = 0;
   }
 
-  return pdfDoc.save({ 
+  await pdf.destroy();
+  await loadingTask.destroy();
+
+  return compressedPdfDoc.save({ 
     useObjectStreams: true,
     addDefaultPage: false,
-    updateFieldAppearances: false,
-    objectsPerTick: 50
   });
 }
 
