@@ -230,18 +230,17 @@ export default function Organize() {
       
       for (const page of pages) {
         if (!loadedDocs[page.sourceFileId]) {
-          // Clone the bytes to avoid buffer issues
-          const bytes = sourceFiles[page.sourceFileId].slice();
-          loadedDocs[page.sourceFileId] = await PDFDocument.load(bytes);
+          // IMPORTANT: Create a fresh copy of the Uint8Array bytes
+          // to prevent issues with detached ArrayBuffers
+          const sourceBytes = sourceFiles[page.sourceFileId];
+          const bytesToLoad = new Uint8Array(sourceBytes);
+          loadedDocs[page.sourceFileId] = await PDFDocument.load(bytesToLoad);
         }
         
         const sourceDoc = loadedDocs[page.sourceFileId];
-        // Copy the specific page from the source document
         const [copiedPage] = await mergedPdf.copyPages(sourceDoc, [page.pageIndex]);
         
-        // Apply rotation if needed
         if (page.rotation !== 0) {
-          // Current rotation + manual rotation
           const currentRotation = copiedPage.getRotation().angle;
           copiedPage.setRotation(degrees(currentRotation + page.rotation));
         }
