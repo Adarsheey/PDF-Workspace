@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/Sidebar";
 
 import Merge from "@/pages/Merge";
+import Organize from "@/pages/Organize";
 import Split from "@/pages/Split";
 import Compress from "@/pages/Compress";
 import Filters from "@/pages/Filters";
@@ -17,6 +18,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Merge} />
+      <Route path="/organize" component={Organize} />
       <Route path="/split" component={Split} />
       <Route path="/compress" component={Compress} />
       <Route path="/filters" component={Filters} />
