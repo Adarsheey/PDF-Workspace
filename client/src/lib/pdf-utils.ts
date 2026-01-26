@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, PDFRawStream, PDFName } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 
 // Configure pdfjs worker
@@ -170,28 +170,70 @@ export async function splitPDF(file: File, range: string): Promise<Uint8Array> {
 }
 
 /**
- * Robust Compression:
- * Re-imaging can inflate files if the original PDF was already optimized or text-heavy.
- * We'll use structural optimization which is guaranteed not to increase file size.
+ * Super Aggressive "Proxy" Image Swap Compression:
+ * We downsample significantly (0.5x scale) and use extremely low JPEG quality (0.1).
+ * This is the ONLY way in pure JS/browser to guarantee a massive size reduction
+ * across most PDFs, by forcibly replacing all content with tiny JPEG bitmaps.
  */
 export async function compressPDF(file: File): Promise<Uint8Array> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+  const loadingTask = pdfjs.getDocument({ 
+    data: arrayBuffer,
+    disableFontFace: true,
+    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/cmaps/`,
+    cMapPacked: true,
+  });
   
-  // Strip all metadata
-  pdfDoc.setTitle("");
-  pdfDoc.setAuthor("");
-  pdfDoc.setSubject("");
-  pdfDoc.setKeywords([]);
-  pdfDoc.setProducer("");
-  pdfDoc.setCreator("");
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+  const compressedPdfDoc = await PDFDocument.create();
 
-  // Re-save with object streams and maximum compression
-  // This reduces size structurally without touching visual data quality
-  return pdfDoc.save({ 
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdf.getPage(i);
+    // Downsample to 0.5x for massive pixel count reduction
+    const scale = 0.5; 
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) continue;
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({
+      canvasContext: context,
+      viewport: viewport,
+    }).promise;
+
+    // Extremely aggressive JPEG compression (0.1)
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.1);
+    const jpegBytes = await fetch(jpegDataUrl).then(res => res.arrayBuffer());
+    
+    const image = await compressedPdfDoc.embedJpg(jpegBytes);
+    // Scale back to original dimensions in the PDF points
+    const originalViewport = page.getViewport({ scale: 1.0 });
+    const pdfPage = compressedPdfDoc.addPage([originalViewport.width, originalViewport.height]);
+    
+    pdfPage.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: originalViewport.width,
+      height: originalViewport.height,
+    });
+    
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+
+  await pdf.destroy();
+  await loadingTask.destroy();
+
+  return compressedPdfDoc.save({ 
     useObjectStreams: true,
-    addDefaultPage: false,
-    updateFieldAppearances: false
   });
 }
 
