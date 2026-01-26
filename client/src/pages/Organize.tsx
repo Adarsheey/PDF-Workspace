@@ -4,7 +4,6 @@ import { PDFDocument, degrees } from "pdf-lib";
 import * as pdfjs from "pdfjs-dist";
 import download from "downloadjs";
 import { 
-  FileStack, 
   RotateCw, 
   Trash2, 
   GripVertical, 
@@ -16,7 +15,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { 
   DndContext, 
   closestCenter, 
@@ -231,14 +230,20 @@ export default function Organize() {
       
       for (const page of pages) {
         if (!loadedDocs[page.sourceFileId]) {
-          loadedDocs[page.sourceFileId] = await PDFDocument.load(sourceFiles[page.sourceFileId]);
+          // Clone the bytes to avoid buffer issues
+          const bytes = sourceFiles[page.sourceFileId].slice();
+          loadedDocs[page.sourceFileId] = await PDFDocument.load(bytes);
         }
         
         const sourceDoc = loadedDocs[page.sourceFileId];
+        // Copy the specific page from the source document
         const [copiedPage] = await mergedPdf.copyPages(sourceDoc, [page.pageIndex]);
         
+        // Apply rotation if needed
         if (page.rotation !== 0) {
-          copiedPage.setRotation(degrees(page.rotation));
+          // Current rotation + manual rotation
+          const currentRotation = copiedPage.getRotation().angle;
+          copiedPage.setRotation(degrees(currentRotation + page.rotation));
         }
         
         mergedPdf.addPage(copiedPage);
@@ -251,11 +256,11 @@ export default function Organize() {
         title: "Success",
         description: "Your organized PDF has been saved.",
       });
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error('Merge Error:', error);
       toast({
         title: "Export failed",
-        description: "Could not generate the merged PDF.",
+        description: `Error: ${error.message || "Could not generate PDF"}`,
         variant: "destructive"
       });
     } finally {
@@ -326,7 +331,7 @@ export default function Organize() {
             </SortableContext>
             
             <button 
-              onClick={() => document.querySelector('input[type="file"]')?.click()}
+              onClick={() => (document.querySelector('input[type="file"]') as HTMLInputElement)?.click()}
               className="aspect-[3/4] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all bg-card/30 hover:bg-card/50"
             >
               <Plus className="w-8 h-8" />
