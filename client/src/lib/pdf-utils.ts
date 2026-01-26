@@ -170,28 +170,72 @@ export async function splitPDF(file: File, range: string): Promise<Uint8Array> {
 }
 
 /**
- * Optimized Compression Strategy:
- * Instead of re-imaging every page (which can inflate text-heavy PDFs),
- * we optimize the existing document structure and only re-encode large images.
+ * Advanced Compression Strategy: "Proxy" Image Swap
+ * To achieve significant 50-80% reduction, we:
+ * 1. Render each page to a canvas using PDF.js.
+ * 2. Convert canvas to a highly compressed JPEG.
+ * 3. Reconstruct a new PDF where each page is that one image.
+ * Note: This makes text non-selectable.
  */
 export async function compressPDF(file: File): Promise<Uint8Array> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(arrayBuffer);
+  const loadingTask = pdfjs.getDocument({ 
+    data: arrayBuffer,
+    disableFontFace: true,
+    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/cmaps/`,
+    cMapPacked: true,
+  });
   
-  // Strip metadata
-  pdfDoc.setTitle("");
-  pdfDoc.setAuthor("");
-  pdfDoc.setSubject("");
-  pdfDoc.setKeywords([]);
-  pdfDoc.setProducer("");
-  pdfDoc.setCreator("");
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+  const compressedPdfDoc = await PDFDocument.create();
 
-  // Use PDF-Lib's internal compression and object streams
-  // This is the most reliable way to reduce size without inflating it
-  return pdfDoc.save({ 
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdf.getPage(i);
+    // Use a moderate scale to maintain readability while maximizing compression
+    const scale = 1.25; 
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) continue;
+
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    // JPEG needs white background
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({
+      canvasContext: context,
+      viewport: viewport,
+    }).promise;
+
+    // Convert to highly compressed JPEG (0.4-0.5 quality for maximum reduction)
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.4);
+    const jpegBytes = await fetch(jpegDataUrl).then(res => res.arrayBuffer());
+    
+    const image = await compressedPdfDoc.embedJpg(jpegBytes);
+    const pdfPage = compressedPdfDoc.addPage([viewport.width, viewport.height]);
+    
+    pdfPage.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: viewport.width,
+      height: viewport.height,
+    });
+    
+    // Cleanup canvas
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+
+  await pdf.destroy();
+  await loadingTask.destroy();
+
+  return compressedPdfDoc.save({ 
     useObjectStreams: true,
-    addDefaultPage: false,
-    updateFieldAppearances: false,
   });
 }
 
