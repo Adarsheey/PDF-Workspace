@@ -1,12 +1,19 @@
-import initGhostscript from '@jspawn/ghostscript-wasm';
+// @ts-ignore
+import initGhostscript from '@jspawn/ghostscript-wasm/gs.js';
 
-self.onmessage = async (e) => {
-  const { fileData, fileName } = e.data;
+self.onmessage = async (e: MessageEvent) => {
+  const { fileData } = e.data;
   
   try {
+    // The library usually expects an object that might include locateFile
+    // and returns a Module-like object that has callMain and FS
     const gs = await initGhostscript({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@jspawn/ghostscript-wasm@0.0.2/${file}`
+      locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@jspawn/ghostscript-wasm@0.0.2/${file}`
     });
+
+    if (!gs || !gs.FS || !gs.callMain) {
+      throw new Error('Ghostscript initialization failed: missing FS or callMain');
+    }
 
     // Write input PDF to virtual filesystem
     gs.FS.writeFile('input.pdf', new Uint8Array(fileData));
@@ -31,12 +38,14 @@ self.onmessage = async (e) => {
     gs.FS.unlink('input.pdf');
     gs.FS.unlink('output.pdf');
 
+    // Transferable buffer for efficiency
+    const buffer = compressedData.buffer;
     self.postMessage({ 
       success: true, 
-      data: compressedData.buffer 
-    }, [compressedData.buffer]);
+      data: buffer 
+    }, { transfer: [buffer] } as any);
     
-  } catch (error) {
+  } catch (error: any) {
     self.postMessage({ 
       success: false, 
       error: error.message || 'Compression failed' 
