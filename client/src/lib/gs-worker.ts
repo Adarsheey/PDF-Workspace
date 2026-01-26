@@ -5,8 +5,8 @@ self.onmessage = async (e: MessageEvent) => {
   const { fileData } = e.data;
   
   try {
-    // The library usually expects an object that might include locateFile
-    // and returns a Module-like object that has callMain and FS
+    // We must ensure the global scope is clean or the library might fail if it expects a specific environment
+    // @ts-ignore
     const gs = await initGhostscript({
       locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@jspawn/ghostscript-wasm@0.0.2/${file}`
     });
@@ -43,7 +43,7 @@ self.onmessage = async (e: MessageEvent) => {
     self.postMessage({ 
       success: true, 
       data: buffer 
-    }, { transfer: [buffer] } as any);
+    }, [buffer] as any);
     
   } catch (error: any) {
     self.postMessage({ 
