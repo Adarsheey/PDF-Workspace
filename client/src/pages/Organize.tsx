@@ -11,7 +11,8 @@ import {
   Save, 
   Loader2, 
   Plus, 
-  RotateCcw 
+  RotateCcw,
+  LayoutGrid
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -23,13 +24,15 @@ import {
   PointerSensor, 
   useSensor, 
   useSensors,
-  DragEndEvent
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  defaultDropAnimationSideEffects
 } from "@dnd-kit/core";
 import { 
   arrayMove, 
   SortableContext, 
   sortableKeyboardCoordinates, 
-  verticalListSortingStrategy,
   useSortable,
   rectSortingStrategy
 } from "@dnd-kit/sortable";
@@ -50,11 +53,13 @@ interface PDFPage {
 function SortablePage({ 
   page, 
   onDelete, 
-  onRotate 
+  onRotate,
+  isOverlay = false
 }: { 
   page: PDFPage; 
-  onDelete: (id: string) => void; 
-  onRotate: (id: string) => void;
+  onDelete?: (id: string) => void; 
+  onRotate?: (id: string) => void;
+  isOverlay?: boolean;
 }) {
   const {
     attributes,
@@ -69,45 +74,47 @@ function SortablePage({
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 0,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging && !isOverlay ? 0.3 : 1,
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="relative group aspect-[3/4]">
-      <Card className="h-full w-full overflow-hidden bg-card/50 border-border group-hover:border-primary/50 transition-colors cursor-default">
+    <div ref={setNodeRef} style={style} className={`relative group aspect-[3/4] ${isOverlay ? 'cursor-grabbing' : ''}`}>
+      <Card className={`h-full w-full overflow-hidden bg-card/50 border-border group-hover:border-primary/50 transition-colors ${isOverlay ? 'shadow-2xl ring-2 ring-primary' : ''}`}>
         <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
-           <div {...attributes} {...listeners} className="p-1 bg-black/60 rounded cursor-grab active:cursor-grabbing hover:bg-black/80">
-             <GripVertical className="w-3 h-3 text-white" />
+           <div {...attributes} {...listeners} className="p-1.5 bg-black/60 rounded cursor-grab active:cursor-grabbing hover:bg-black/80">
+             <GripVertical className="w-3.5 h-3.5 text-white" />
            </div>
            <div className="bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-bold text-white uppercase">
              Page {page.pageIndex + 1}
            </div>
         </div>
         
-        <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button 
-            size="icon" 
-            variant="secondary" 
-            className="h-7 w-7 bg-black/60 hover:bg-black/80 border-0" 
-            onClick={() => onRotate(page.id)}
-          >
-            <RotateCw className="w-3 h-3 text-white" />
-          </Button>
-          <Button 
-            size="icon" 
-            variant="destructive" 
-            className="h-7 w-7 bg-red-500/60 hover:bg-red-500/80 border-0" 
-            onClick={() => onDelete(page.id)}
-          >
-            <Trash2 className="w-3 h-3 text-white" />
-          </Button>
-        </div>
+        {!isOverlay && onDelete && onRotate && (
+          <div className="absolute top-2 right-2 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button 
+              size="icon" 
+              variant="secondary" 
+              className="h-7 w-7 bg-black/60 hover:bg-black/80 border-0" 
+              onClick={(e) => { e.stopPropagation(); onRotate(page.id); }}
+            >
+              <RotateCw className="w-3 h-3 text-white" />
+            </Button>
+            <Button 
+              size="icon" 
+              variant="destructive" 
+              className="h-7 w-7 bg-red-500/60 hover:bg-red-500/80 border-0" 
+              onClick={(e) => { e.stopPropagation(); onDelete(page.id); }}
+            >
+              <Trash2 className="w-3 h-3 text-white" />
+            </Button>
+          </div>
+        )}
 
-        <div className="w-full h-full flex items-center justify-center p-2 bg-secondary/20">
+        <div className="w-full h-full flex items-center justify-center p-2 bg-secondary/10">
           <img 
             src={page.previewUrl} 
             alt={`Page ${page.pageIndex + 1}`} 
-            className="max-w-full max-h-full object-contain shadow-sm"
+            className="max-w-full max-h-full object-contain pointer-events-none"
             style={{ transform: `rotate(${page.rotation}deg)`, transition: 'transform 0.2s ease-in-out' }}
           />
         </div>
@@ -121,12 +128,13 @@ export default function Organize() {
   const [sourceFiles, setSourceFiles] = useState<Record<string, Uint8Array>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -172,8 +180,8 @@ export default function Organize() {
       setSourceFiles(newSourceFiles);
       setPages(prev => [...prev, ...newPages]);
       toast({
-        title: "PDFs Imported",
-        description: `Added ${newPages.length} pages to the organizer.`,
+        title: "Pages Added",
+        description: `${newPages.length} pages are ready for reordering.`,
       });
     } catch (error) {
       console.error(error);
@@ -197,6 +205,10 @@ export default function Organize() {
     ));
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -206,6 +218,7 @@ export default function Organize() {
         return arrayMove(items, oldIndex, newIndex);
       });
     }
+    setActiveId(null);
   };
 
   const handleSave = async () => {
@@ -214,8 +227,6 @@ export default function Organize() {
     setIsExporting(true);
     try {
       const mergedPdf = await PDFDocument.create();
-      
-      // Keep track of loaded source documents to avoid redundant loading
       const loadedDocs: Record<string, PDFDocument> = {};
       
       for (const page of pages) {
@@ -238,7 +249,7 @@ export default function Organize() {
       
       toast({
         title: "Success",
-        description: "Organized PDF has been downloaded.",
+        description: "Your organized PDF has been saved.",
       });
     } catch (error) {
       console.error(error);
@@ -252,18 +263,23 @@ export default function Organize() {
     }
   };
 
+  const activePage = activeId ? pages.find(p => p.id === activeId) : null;
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-white">Organize PDF</h1>
-          <p className="text-muted-foreground text-lg">Shuffle, rotate, and delete pages to create your perfect document.</p>
+          <div className="flex items-center gap-3">
+            <LayoutGrid className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl md:text-4xl font-display font-bold text-white">Organize PDF</h1>
+          </div>
+          <p className="text-muted-foreground text-lg italic">Select a page and drag it to any position to reorder your document.</p>
         </div>
         
         {pages.length > 0 && (
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => { setPages([]); setSourceFiles({}); }}>
-              <RotateCcw className="w-4 h-4 mr-2" /> Clear All
+              <RotateCcw className="w-4 h-4 mr-2" /> Clear
             </Button>
             <Button onClick={handleSave} disabled={isExporting} className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
               {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
@@ -276,14 +292,14 @@ export default function Organize() {
       <UploadZone 
         onFilesSelected={handleFilesSelected} 
         maxFiles={10}
-        description="Upload one or more PDFs to start organizing pages"
-        className={pages.length > 0 ? "h-32" : ""}
+        description="Add more PDFs to the organizer"
+        className={pages.length > 0 ? "h-32 border-primary/20" : ""}
       />
 
       {isProcessing && (
         <div className="flex flex-col items-center justify-center py-12 space-y-4">
           <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          <p className="text-muted-foreground animate-pulse">Processing document pages...</p>
+          <p className="text-muted-foreground animate-pulse">Reading pages...</p>
         </div>
       )}
 
@@ -291,9 +307,10 @@ export default function Organize() {
         <DndContext 
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 pt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 pt-4 pb-20">
             <SortableContext 
               items={pages.map(p => p.id)}
               strategy={rectSortingStrategy}
@@ -310,12 +327,29 @@ export default function Organize() {
             
             <button 
               onClick={() => document.querySelector('input[type="file"]')?.click()}
-              className="aspect-[3/4] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all bg-card/30"
+              className="aspect-[3/4] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all bg-card/30 hover:bg-card/50"
             >
               <Plus className="w-8 h-8" />
-              <span className="text-xs font-bold uppercase tracking-wider">Add More</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">Add Files</span>
             </button>
           </div>
+
+          <DragOverlay dropAnimation={{
+            sideEffects: defaultDropAnimationSideEffects({
+              styles: {
+                active: {
+                  opacity: '0.5',
+                },
+              },
+            }),
+          }}>
+            {activePage ? (
+              <SortablePage 
+                page={activePage} 
+                isOverlay
+              />
+            ) : null}
+          </DragOverlay>
         </DndContext>
       )}
     </div>
