@@ -1,60 +1,95 @@
 import { useState } from "react";
 import { UploadZone } from "@/components/UploadZone";
-import { compressPDF } from "@/lib/pdf-utils";
-import download from "downloadjs";
-import { FileType, Minimize2, Loader2, RotateCcw, CheckCircle2 } from "lucide-react";
+import { Download, FileType, Loader2, RotateCcw, Zap, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import download from "downloadjs";
 
 export default function Compress() {
   const [file, setFile] = useState<File | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [originalSize, setOriginalSize] = useState(0);
-  const [compressedSize, setCompressedSize] = useState(0);
-  const [resultBytes, setResultBytes] = useState<Uint8Array | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressedFile, setCompressedFile] = useState<Uint8Array | null>(null);
+  const [compressionRatio, setCompressionRatio] = useState<number | null>(null);
   
   const { toast } = useToast();
 
   const handleFileSelected = (files: File[]) => {
     if (files.length > 0) {
-      const selected = files[0];
-      setFile(selected);
-      setOriginalSize(selected.size);
-      setResultBytes(null);
-      setCompressedSize(0);
+      setFile(files[0]);
+      setCompressedFile(null);
+      setCompressionRatio(null);
     }
   };
 
   const handleCompress = async () => {
     if (!file) return;
 
+    setIsCompressing(true);
+    
     try {
-      setIsProcessing(true);
-      const bytes = await compressPDF(file);
+      const fileBuffer = await file.arrayBuffer();
       
-      setResultBytes(bytes);
-      setCompressedSize(bytes.byteLength);
-      
-      toast({
-        title: "Optimization Complete",
-        description: "Your PDF is ready to download.",
+      // Use Web Worker for Ghostscript WASM
+      const worker = new Worker(new URL('../lib/gs-worker.ts', import.meta.url), {
+        type: 'module'
       });
+
+      worker.postMessage({
+        fileData: fileBuffer,
+        fileName: file.name
+      }, [fileBuffer]);
+
+      worker.onmessage = (e) => {
+        const { success, data, error } = e.data;
+        
+        if (success) {
+          const result = new Uint8Array(data);
+          setCompressedFile(result);
+          setCompressionRatio(1 - (result.length / file.size));
+          
+          toast({
+            title: "Compression complete",
+            description: `Reduced file size by ${Math.round((1 - result.length / file.size) * 100)}%`,
+          });
+        } else {
+          toast({
+            title: "Compression failed",
+            description: error || "Ghostscript WASM failed to process the file.",
+            variant: "destructive"
+          });
+        }
+        setIsCompressing(false);
+        worker.terminate();
+      };
+
+      worker.onerror = (e) => {
+        console.error('Worker Error:', e);
+        toast({
+          title: "Compression error",
+          description: "A background process error occurred. Please try again.",
+          variant: "destructive"
+        });
+        setIsCompressing(false);
+        worker.terminate();
+      };
+
     } catch (error) {
       console.error(error);
       toast({
         title: "Compression failed",
-        description: "An error occurred while processing your file.",
+        description: "An error occurred during compression initialization.",
         variant: "destructive"
       });
-    } finally {
-      setIsProcessing(false);
+      setIsCompressing(false);
     }
   };
 
   const handleDownload = () => {
-    if (resultBytes && file) {
-      download(resultBytes, `optimized-${file.name}`, "application/pdf");
-    }
+    if (!compressedFile || !file) return;
+    const fileName = file.name.replace(/\.[^/.]+$/, "") + "-compressed.pdf";
+    download(compressedFile, fileName, "application/pdf");
   };
 
   const formatSize = (bytes: number) => {
@@ -65,17 +100,11 @@ export default function Compress() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const calculateReduction = () => {
-    if (originalSize === 0) return 0;
-    const reduction = ((originalSize - compressedSize) / originalSize) * 100;
-    return Math.max(0, reduction).toFixed(1);
-  };
-
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="space-y-2">
         <h1 className="text-3xl md:text-4xl font-display font-bold text-white">Compress PDF</h1>
-        <p className="text-muted-foreground text-lg">Reduce file size while maintaining document quality.</p>
+        <p className="text-muted-foreground text-lg">Powerful Ghostscript-WASM compression with /ebook optimization.</p>
       </div>
 
       {!file ? (
@@ -85,84 +114,74 @@ export default function Compress() {
           description="Upload a PDF to reduce its file size"
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-          <div className="bg-card border border-border rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px] relative overflow-hidden group">
-             <div className="absolute inset-0 bg-secondary/30" />
-             <FileType className="w-24 h-24 text-primary mb-6 relative z-10 drop-shadow-2xl" />
-             <h3 className="text-xl font-bold relative z-10 text-center px-4 break-all">{file.name}</h3>
-             <div className="mt-2 text-sm font-medium px-3 py-1 bg-white/10 rounded-full text-white/80 relative z-10">
-               {formatSize(originalSize)}
-             </div>
-
-             <button 
-                onClick={() => { setFile(null); setResultBytes(null); }}
-                className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 rounded-full transition-colors z-20"
-             >
-                <RotateCcw className="w-4 h-4 text-white" />
-             </button>
-          </div>
-
-          <div className="bg-card border border-border rounded-2xl p-8 shadow-xl space-y-6 flex flex-col justify-center min-h-[300px]">
-            {!resultBytes ? (
-              <div className="text-center space-y-6">
-                 <div>
-                    <h3 className="text-lg font-semibold mb-2">Ready to Compress</h3>
-                    <p className="text-sm text-muted-foreground">
-                      We'll remove unnecessary metadata and optimize the internal structure of your document.
-                    </p>
-                 </div>
-                 
-                 <Button 
-                  onClick={handleCompress}
-                  disabled={isProcessing}
-                  className="w-full h-12 text-base shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-0.5"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Optimizing...
-                    </>
-                  ) : (
-                    <>
-                      <Minimize2 className="w-5 h-5 mr-2" />
-                      Compress PDF
-                    </>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <div className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex justify-center">
-                  <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-                    <CheckCircle2 className="w-8 h-8 text-green-500" />
-                  </div>
-                </div>
-
+        <div className="space-y-6">
+          <Card className="bg-card/50 border-border">
+            <CardContent className="pt-6 flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <FileType className="w-12 h-12 text-primary" />
                 <div>
-                  <h3 className="text-xl font-bold text-green-500 mb-1">Success!</h3>
-                  <p className="text-muted-foreground">Your file is ready.</p>
+                  <h3 className="font-bold break-all">{file.name}</h3>
+                  <p className="text-sm text-muted-foreground">Original size: {formatSize(file.size)}</p>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4 text-center">
-                   <div className="bg-secondary/50 p-3 rounded-lg">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">New Size</p>
-                      <p className="font-bold text-white">{formatSize(compressedSize)}</p>
-                   </div>
-                   <div className="bg-secondary/50 p-3 rounded-lg">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Reduction</p>
-                      <p className="font-bold text-green-400">{calculateReduction()}%</p>
-                   </div>
-                </div>
-                
-                <Button 
-                  onClick={handleDownload}
-                  className="w-full h-12 text-base bg-green-600 hover:bg-green-700 shadow-lg shadow-green-900/20"
-                >
-                  Download Optimized PDF
-                </Button>
               </div>
-            )}
-          </div>
+              
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setFile(null)}
+                  disabled={isCompressing}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" /> Change File
+                </Button>
+                
+                {!compressedFile && (
+                  <Button 
+                    onClick={handleCompress}
+                    disabled={isCompressing}
+                    className="bg-primary hover:bg-primary/90"
+                  >
+                    {isCompressing ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Zap className="w-4 h-4 mr-2" />
+                    )}
+                    {isCompressing ? "Compressing..." : "Compress PDF"}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {isCompressing && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Processing with Ghostscript WASM...</span>
+                <span className="animate-pulse">Running in Web Worker</span>
+              </div>
+              <Progress value={undefined} className="h-2" />
+            </div>
+          )}
+
+          {compressedFile && (
+            <Card className="bg-primary/5 border-primary/20 animate-in zoom-in-95">
+              <CardContent className="pt-6 text-center space-y-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 text-primary mb-2">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xl font-bold">PDF Compressed Successfully!</h3>
+                  <p className="text-muted-foreground">
+                    New size: {formatSize(compressedFile.length)} 
+                    {compressionRatio && ` (${Math.round(compressionRatio * 100)}% reduction)`}
+                  </p>
+                </div>
+                <Button onClick={handleDownload} size="lg" className="w-full sm:w-auto">
+                  <Download className="w-4 h-4 mr-2" /> Download Compressed PDF
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
