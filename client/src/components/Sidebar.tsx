@@ -18,7 +18,7 @@ export function Sidebar() {
     <aside className="w-64 h-screen border-r border-border bg-card/50 backdrop-blur-xl flex flex-col fixed left-0 top-0 z-50">
       <div className="p-8 pb-4">
         <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 font-display">
-          PDF Master
+          PDF Workbench
         </h1>
         <p className="text-xs text-muted-foreground mt-1 font-medium tracking-wide uppercase">
           Pro Tools Suite

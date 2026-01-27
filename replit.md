@@ -1,12 +1,13 @@
-# PDF Master
+# PDF Workbench
 
 ## Overview
 
-PDF Master is a client-side PDF processing web application that provides tools for merging, splitting, compressing, and applying visual filters to PDF documents. All PDF operations are performed entirely in the browser using the pdf-lib library and Ghostscript WASM, ensuring user privacy and eliminating server-side file processing.
+PDF Workbench is a client-side PDF processing web application that provides tools for merging, splitting, compressing, and applying visual filters to PDF documents. All PDF operations are performed entirely in the browser using the pdf-lib library and Ghostscript WASM, ensuring user privacy and eliminating server-side file processing.
 
 ## Recent Changes
 
-### 2026-01-26
+### 2026-01-27
+- **Rebranding**: Renamed application from "PDF Master" to "PDF Workbench" with updated header, title, and favicon.
 - **Ghostscript WASM Integration**: Replaced basic PDF compression with Ghostscript WASM engine using the `/ebook` preset.
 - **Web Worker Support**: Moved compression to a Web Worker to prevent UI freezing during processing.
 - **PDF rendering fix**: Updated PDF rendering engine to version 5.4.530 for consistent page previews.
