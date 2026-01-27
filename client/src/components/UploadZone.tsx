@@ -38,7 +38,7 @@ export function UploadZone({
         isDragActive 
           ? "border-primary bg-primary/5 scale-[1.01]" 
           : "border-white/10 hover:border-white/20 hover:bg-white/5",
-        compact ? "p-8" : "p-16"
+        compact ? "p-4 md:p-8" : "p-8 md:p-16"
       )}
     >
       <input {...getInputProps()} />
