@@ -50,13 +50,13 @@ function App() {
             </h1>
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" data-testid="button-mobile-menu">
                   <Menu className="w-6 h-6" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-72 bg-background border-r border-border">
-                <div className="flex flex-col h-full" onClick={() => setOpen(false)}>
-                  <Sidebar className="static w-full h-full border-r-0" />
+              <SheetContent side="left" className="p-0 w-[280px] bg-background border-r border-border">
+                <div className="flex flex-col h-full overflow-y-auto" onClick={() => setOpen(false)}>
+                  <Sidebar className="!flex lg:!flex w-full h-full static border-r-0" />
                 </div>
               </SheetContent>
             </Sheet>

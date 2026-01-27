@@ -17,7 +17,7 @@ export function Sidebar({ className }: { className?: string }) {
   return (
     <aside className={cn(
       "hidden lg:flex w-64 h-screen border-r border-border bg-card/50 backdrop-blur-xl flex-col fixed left-0 top-0 z-50",
-      className
+      className && !className.includes("flex") ? className : className
     )}>
       <div className="p-8 pb-4">
         <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 font-display">
